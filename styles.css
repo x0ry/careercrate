@@ -1,17 +1,44 @@
 /* ========================================
    GLOBAL & THEME
+   Windows 7 Aero glass translucency x XP "Noir" black
    ======================================== */
 :root {
-    --bg-gradient: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
-    --card-bg: rgba(255, 255, 255, 0.92);
-    --card-border: rgba(255, 255, 255, 0.3);
-    --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.08);
-    --shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.12);
-    --accent: #0073b1;
-    --accent-hover: #005a8c;
-    --text: #1a1a1a;
-    --text-light: #555;
-    --border: #d8dee4;
+    /* Royale Noir is navy-black, not neutral gray-black - every dark value
+       here carries a cool blue undertone rather than true gray. */
+    --bg-gradient: radial-gradient(ellipse 1200px 800px at 50% -10%, #141b30 0%, #0a0e1a 45%, #020306 100%);
+    --card-bg: rgba(15, 19, 32, 0.55);
+    --card-bg-strong: rgba(8, 10, 18, 0.82);
+    --card-border: rgba(148, 178, 224, 0.14);
+    --gloss: linear-gradient(180deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.015) 30%, rgba(255, 255, 255, 0) 45%);
+    --shadow-sm: 0 4px 12px rgba(0, 0, 2, 0.45);
+    --shadow-lg: 0 16px 40px rgba(0, 0, 3, 0.65);
+    --accent: #3fa9f5;
+    --accent-2: #8ecfff;
+    --accent-dark: #0d5eab;
+    --accent-hover: #63bdff;
+    --glow: rgba(63, 169, 245, 0.45);
+
+    /* Button-fill blues only - deliberately darker than --accent/--accent-2
+       above (which are tuned as *text* colors on dark backgrounds). White
+       button labels need the fill itself to stay under ~0.18 relative
+       luminance everywhere, gloss highlight included, to hold 4.5:1 (WCAG AA)
+       against white - verified against the actual composited colors, not
+       just the gradient stops. */
+    --btn-blue-top: #0d63a0;
+    --btn-blue-mid: #0a5590;
+    --btn-blue-bottom: #083f6e;
+    --btn-green-top: #0d6f4a;
+    --btn-green-mid: #0a5c3c;
+    --btn-green-bottom: #084830;
+    --btn-glow-green: rgba(16, 185, 129, 0.4);
+    --text: #eef2f6;
+    --text-light: #98a2ad;
+    --border: rgba(255, 255, 255, 0.12);
+
+    --bs-primary: #3fa9f5;
+    --bs-primary-rgb: 63, 169, 245;
+    --bs-link-color: #8ecfff;
+    --bs-link-hover-color: #b9e1ff;
 }
 
 * {
@@ -21,6 +48,7 @@
 body {
     font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
     background: var(--bg-gradient);
+    background-color: #000;
     background-attachment: fixed;
     margin: 0;
     padding: 16px 8px;
@@ -29,7 +57,7 @@ body {
     overflow-x: hidden;
 }
 
-/* Subtle noise texture overlay */
+/* Subtle film-grain texture - noir cinema, not modern flat UI */
 body::before {
     content: '';
     position: fixed;
@@ -37,7 +65,24 @@ body::before {
     left: 0;
     right: 0;
     bottom: 0;
-    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" /><feColorMatrix values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0.03 0"/></filter><rect width="100" height="100" filter="url(%23n)" opacity="0.04"/></svg>') repeat;
+    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" /><feColorMatrix values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0.05 0"/></filter><rect width="100" height="100" filter="url(%23n)" opacity="0.05"/></svg>') repeat;
+    pointer-events: none;
+    z-index: -1;
+}
+
+/* Soft ambient glow blooms - gives the blurred glass panels something
+   to actually reveal, otherwise "translucent" just reads as "dark". */
+body::after {
+    content: '';
+    position: fixed;
+    top: -10%;
+    left: -10%;
+    right: -10%;
+    bottom: -10%;
+    background:
+        radial-gradient(650px 650px at 12% 15%, rgba(63, 169, 245, 0.20), transparent 60%),
+        radial-gradient(700px 700px at 88% 10%, rgba(147, 51, 234, 0.14), transparent 60%),
+        radial-gradient(900px 900px at 50% 105%, rgba(13, 94, 171, 0.18), transparent 60%);
     pointer-events: none;
     z-index: -1;
 }
@@ -45,11 +90,19 @@ body::before {
 h2.card-title {
     text-align: center;
     margin: 16px 0;
-    color: #004f7c;
+    color: var(--text);
     font-size: clamp(1.4rem, 4vw, 2.2rem);
     font-weight: 700;
     letter-spacing: -0.5px;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    text-shadow: 0 0 22px var(--glow), 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.text-muted {
+    color: var(--text-light) !important;
+}
+
+a {
+    color: var(--accent-2);
 }
 
 /* ========================================
@@ -62,13 +115,14 @@ h2.card-title {
 }
 
 .dashboard {
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    position: relative;
+    background: var(--gloss), var(--card-bg);
+    backdrop-filter: blur(22px) saturate(160%);
+    -webkit-backdrop-filter: blur(22px) saturate(160%);
     border: 1px solid var(--card-border);
     border-radius: 20px;
     padding: 20px;
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.08);
     margin-bottom: 80px;
 }
 
@@ -103,8 +157,7 @@ body.map-mode .container {
 
 body.map-mode .pagination-controls,
 body.map-mode #loading,
-body.map-mode .mobile-sort-bar,
-body.map-mode #process-fab-container {
+body.map-mode .mobile-sort-bar {
     display: none !important;
 }
 
@@ -114,7 +167,7 @@ body.map-mode #process-fab-container {
     min-height: 800px;
     border-radius: 12px;
     overflow: hidden;
-    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.15);
+    box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--card-border);
 }
 
 #map {
@@ -130,8 +183,7 @@ body.map-mode .filter-panel {
     width: 400px;
     max-height: calc(90vh - 150px);
     overflow-y: auto;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    background: white;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
 }
 
 /* Map needs to be the positioning context */
@@ -222,6 +274,10 @@ body.map-mode .filter-panel {
    ======================================== */
 
 .filter-panel {
+    background: var(--gloss), var(--card-bg);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid var(--card-border) !important;
     border-radius: 12px !important;
     overflow: hidden;
 }
@@ -232,6 +288,7 @@ body.map-mode .filter-panel {
     justify-content: center;
     gap: 8px;
     font-weight: 600;
+    border-radius: 0 !important;
 }
 
 .filter-toggle.open {
@@ -251,8 +308,8 @@ body.map-mode .filter-panel {
 
 .filter-controls {
     padding: 1.2rem;
-    background: rgba(240, 245, 255, 0.6);
-    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.2);
+    background: rgba(6, 7, 9, 0.45);
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.45);
 
     border-bottom-left-radius: 12px;
     border-bottom-right-radius: 12px;
@@ -264,60 +321,197 @@ body.map-mode .filter-panel {
     height: 48px;
 }
 
+.form-control,
+.form-select {
+    background-color: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text) !important;
+}
+
+.form-control::placeholder {
+    color: var(--text-light) !important;
+    opacity: 0.8;
+}
+
+.form-control:focus,
+.form-select:focus {
+    background-color: rgba(255, 255, 255, 0.07) !important;
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 3px var(--glow) !important;
+}
+
+.form-select option {
+    background-color: #14161a;
+    color: var(--text);
+}
+
+.form-check-input {
+    background-color: rgba(255, 255, 255, 0.06);
+    border-color: var(--border);
+}
+
+.form-check-input:checked {
+    background-color: var(--accent);
+    border-color: var(--accent);
+}
+
+.form-check-input:focus {
+    box-shadow: 0 0 0 3px var(--glow);
+}
 
 /* ========================================
-   FAB WITH LABEL
+   AERO GLOSS BUTTONS
    ======================================== */
-#process-fab-container {
-    position: fixed;
-    right: 16px;
-    bottom: 16px;
-    z-index: 1050;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    padding: 8px 12px;
-    border-radius: 32px;
-    box-shadow: 0 8px 24px rgba(0, 115, 177, 0.25);
-    transition: all 0.3s ease;
+
+.btn {
+    border-radius: 6px;
     font-weight: 600;
-    color: #004f7c;
-    font-size: 14px;
-    max-width: 220px;
+    letter-spacing: 0.2px;
+    transition: filter 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
 }
 
-#process-fab-container:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 32px rgba(0, 115, 177, 0.35);
+.btn-primary,
+.btn-primary:disabled {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.02) 12%, rgba(255, 255, 255, 0) 20%, rgba(0, 0, 0, 0.16) 100%),
+        linear-gradient(180deg, var(--btn-blue-top) 0%, var(--btn-blue-mid) 55%, var(--btn-blue-bottom) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    color: #ffffff;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -1px 0 rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.5), 0 0 16px var(--glow);
 }
 
-#process-fab {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: var(--accent);
-    color: white;
-    border: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    padding: 0;
-    transition: all 0.2s ease;
-    flex-shrink: 0;
+.btn-primary:hover,
+.btn-primary:focus {
+    filter: brightness(1.12);
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), inset 0 -1px 0 rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.45), 0 0 24px var(--glow);
 }
 
-#process-fab:hover {
-    background: var(--accent-hover);
-    transform: scale(1.08);
+.btn-primary:active {
+    transform: translateY(0);
+    filter: brightness(0.95);
 }
 
-#process-fab svg {
-    width: 22px;
-    height: 22px;
+.btn-secondary {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.02) 12%, rgba(255, 255, 255, 0) 20%, rgba(0, 0, 0, 0.18) 100%),
+        linear-gradient(180deg, #454b53 0%, #23262b 100%);
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    color: #f2f4f6;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.btn-secondary:hover,
+.btn-secondary:focus {
+    filter: brightness(1.15);
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.btn-outline-primary,
+.btn-outline-secondary,
+.btn-outline-success {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    color: var(--text);
+    backdrop-filter: blur(6px);
+}
+
+.btn-outline-primary:hover,
+.btn-outline-secondary:hover,
+.btn-outline-primary:focus {
+    background: rgba(63, 169, 245, 0.16);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: 0 0 14px var(--glow);
+}
+
+.btn-outline-success:hover,
+.btn-outline-success:focus {
+    background: rgba(16, 185, 129, 0.18);
+    border-color: #10b981;
+    color: #fff;
+    box-shadow: 0 0 14px var(--btn-glow-green);
+}
+
+.btn-outline-primary.active,
+.view-toggle.active {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.02) 12%, rgba(255, 255, 255, 0) 20%, rgba(0, 0, 0, 0.16) 100%),
+        linear-gradient(180deg, var(--btn-blue-top) 0%, var(--btn-blue-mid) 55%, var(--btn-blue-bottom) 100%) !important;
+    border-color: rgba(255, 255, 255, 0.35) !important;
+    color: #fff !important;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -1px 0 rgba(0, 0, 0, 0.4), 0 0 16px var(--glow);
+}
+
+.btn-outline-danger {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(239, 68, 68, 0.45);
+    color: #fca5a5;
+    backdrop-filter: blur(6px);
+}
+
+.btn-outline-danger:hover,
+.btn-outline-danger:focus {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: #ef4444;
+    color: #fff;
+    box-shadow: 0 0 14px rgba(239, 68, 68, 0.4);
+}
+
+/* Bootstrap drives :disabled off its own --bs-btn-disabled-* variables,
+   which bypass the plain-class overrides above entirely (equal-or-higher
+   specificity, unthemed defaults) - hence the raw stock-blue "#0d6efd"
+   ghost that showed up here. Pin every disabled/checked state explicitly
+   instead of relying on the cascade to inherit the theme. */
+.btn:disabled,
+.btn.disabled,
+.btn-outline-primary:disabled,
+.btn-outline-secondary:disabled,
+.btn-outline-success:disabled,
+.btn-outline-danger:disabled {
+    background: rgba(255, 255, 255, 0.02) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    color: rgba(238, 242, 246, 0.38) !important;
+    opacity: 1 !important;
+    cursor: not-allowed !important;
+    box-shadow: none !important;
+    filter: none;
+    transform: none;
+}
+
+/* ========================================
+   ACTION CHECKBOXES (Saved / Applied / Ignored)
+   Bootstrap's .btn-check hides the real checkbox and re-skins the paired
+   <label> on :checked - but only with its own unthemed blue/green, for the
+   same reason disabled states above needed pinning. Themed to match.
+   ======================================== */
+.btn-check:checked+.btn-outline-primary {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.02) 12%, rgba(255, 255, 255, 0) 20%, rgba(0, 0, 0, 0.16) 100%),
+        linear-gradient(180deg, var(--btn-blue-top) 0%, var(--btn-blue-mid) 55%, var(--btn-blue-bottom) 100%) !important;
+    border-color: rgba(255, 255, 255, 0.35) !important;
+    color: #fff !important;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 0, 0, 0.4), 0 0 12px var(--glow) !important;
+}
+
+.btn-check:checked+.btn-outline-success {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.02) 12%, rgba(255, 255, 255, 0) 20%, rgba(0, 0, 0, 0.16) 100%),
+        linear-gradient(180deg, var(--btn-green-top) 0%, var(--btn-green-mid) 55%, var(--btn-green-bottom) 100%) !important;
+    border-color: rgba(255, 255, 255, 0.35) !important;
+    color: #fff !important;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 0, 0, 0.4), 0 0 12px var(--btn-glow-green) !important;
+}
+
+.btn-check:checked+.btn-outline-secondary {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.02) 12%, rgba(255, 255, 255, 0) 20%, rgba(0, 0, 0, 0.18) 100%),
+        linear-gradient(180deg, #454b53 0%, #23262b 100%) !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+    color: #fff !important;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(0, 0, 0, 0.4) !important;
 }
 
 #event-handler {
@@ -338,9 +532,9 @@ body.map-mode .filter-panel {
     text-align: center;
     font-weight: 700;
     font-size: 1.1rem;
-    color: #004f7c;
+    color: var(--text);
     padding: 12px 16px;
-    background: rgba(0, 115, 177, 0.08);
+    background: rgba(63, 169, 245, 0.1);
     border-radius: 12px 12px 0 0;
     margin: 0;
     width: 100%;
@@ -348,7 +542,10 @@ body.map-mode .filter-panel {
 }
 
 .job-table tbody {
-    border: 1px solid var(--border);
+    background: var(--card-bg);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    border: 1px solid var(--card-border);
     border-radius: 0 0 12px 12px;
     overflow: hidden;
 }
@@ -357,29 +554,30 @@ body.map-mode .filter-panel {
 .job-table td {
     padding: 12px 10px;
     text-align: left;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .job-table th {
-    background: #f0f6ff;
-    color: #004f7c;
+    background: var(--gloss), rgba(8, 9, 11, 0.7);
+    color: var(--text);
     font-weight: 700;
     font-size: 11px;
     letter-spacing: 0.7px;
     text-transform: uppercase;
-    border-bottom: 2px solid #0073b1;
+    border-bottom: 2px solid var(--accent);
     transition: background 0.2s ease;
 
     user-select: none;
 }
 
 .job-table td {
-    background: rgba(255, 255, 255, 0.7);
+    background: transparent;
     font-size: 14px;
+    color: var(--text);
 }
 
 .job-table a {
-    color: var(--accent);
+    color: var(--accent-2);
     font-weight: 500;
 }
 
@@ -428,20 +626,20 @@ thead.sorting-locked th,
 }
 
 .job-table thead th.sortable:hover {
-    background: #9dddf0;
+    background: rgba(63, 169, 245, 0.28);
     cursor: pointer;
 }
 
 
 /* Desktop stripes */
 .table-striped-desktop>tbody>tr:nth-of-type(odd)>td {
-    background: rgba(240, 248, 255, 0.6);
+    background: rgba(255, 255, 255, 0.03);
 }
 
 /* Desktop row hover */
 @media (min-width: 901px) {
     .job-table tbody tr:hover td {
-        background: rgba(0, 115, 177, 0.06) !important;
+        background: rgba(63, 169, 245, 0.12) !important;
         transition: background 0.12s ease;
     }
 
@@ -462,74 +660,148 @@ thead.sorting-locked th,
 }
 
 .badge.new {
-    background-color: #d1ecf1 !important;
-    color: #0c5460 !important;
+    background-color: rgba(56, 189, 248, 0.16) !important;
+    color: #7dd3fc !important;
+    border: 1px solid rgba(56, 189, 248, 0.4);
 }
 
 .badge.applied {
-    background-color: #d4edda !important;
-    color: #155724 !important;
+    background-color: rgba(16, 185, 129, 0.16) !important;
+    color: #6ee7b7 !important;
+    border: 1px solid rgba(16, 185, 129, 0.4);
 }
 
 .badge.interview {
-    background-color: #fff3cd !important;
-    color: #856404 !important;
+    background-color: rgba(245, 158, 11, 0.16) !important;
+    color: #fcd34d !important;
+    border: 1px solid rgba(245, 158, 11, 0.4);
 }
 
 .badge.rejected {
-    background-color: #f8d7da !important;
-    color: #721c24 !important;
+    background-color: rgba(239, 68, 68, 0.16) !important;
+    color: #fca5a5 !important;
+    border: 1px solid rgba(239, 68, 68, 0.4);
 }
 
 .badge.ignored {
-    background-color: #fff5f5 !important;
-    color: #dc3545 !important;
+    background-color: rgba(244, 63, 94, 0.14) !important;
+    color: #fda4af !important;
+    border: 1px solid rgba(244, 63, 94, 0.35);
 }
 
-/* ATS-specific badge colours */
+/* ATS-specific badge colours - glass chips */
 .badge.ats-greenhouse {
-    background: #dcf5e7;
-    color: #166534;
+    background: rgba(52, 211, 153, 0.16);
+    color: #6ee7b7;
+    border: 1px solid rgba(52, 211, 153, 0.4);
 }
 
 .badge.ats-lever {
-    background: #dbeafe;
-    color: #1e40af;
+    background: rgba(96, 165, 250, 0.16);
+    color: #93c5fd;
+    border: 1px solid rgba(96, 165, 250, 0.4);
 }
 
 .badge.ats-workday {
-    background: #fef3c7;
-    color: #92400e;
+    background: rgba(251, 191, 36, 0.16);
+    color: #fcd34d;
+    border: 1px solid rgba(251, 191, 36, 0.4);
 }
 
 .badge.ats-ashby {
-    background: #ede9fe;
-    color: #5b21b6;
+    background: rgba(192, 132, 252, 0.16);
+    color: #d8b4fe;
+    border: 1px solid rgba(192, 132, 252, 0.4);
 }
 
 .badge.ats-icims {
-    background: #cffafe;
-    color: #155e75;
+    background: rgba(34, 211, 238, 0.16);
+    color: #67e8f9;
+    border: 1px solid rgba(34, 211, 238, 0.4);
 }
 
 .badge.ats-bamboohr {
-    background: #fce7f3;
-    color: #9d174d;
+    background: rgba(244, 114, 182, 0.16);
+    color: #f9a8d4;
+    border: 1px solid rgba(244, 114, 182, 0.4);
 }
 
 .badge.ats-workable {
-    background: #f1f5f9;
-    color: #334155;
+    background: rgba(148, 163, 184, 0.16);
+    color: #cbd5e1;
+    border: 1px solid rgba(148, 163, 184, 0.4);
 }
 
 .badge.ats-paylocity {
-    background: #ffe4e0;
-    color: #b03a2e;
+    background: rgba(251, 113, 133, 0.16);
+    color: #fda4af;
+    border: 1px solid rgba(251, 113, 133, 0.4);
+}
+
+.badge.ats-smartrecruiters {
+    background: rgba(45, 212, 191, 0.16);
+    color: #5eead4;
+    border: 1px solid rgba(45, 212, 191, 0.4);
+}
+
+.badge.ats-recruitee {
+    background: rgba(129, 140, 248, 0.16);
+    color: #a5b4fc;
+    border: 1px solid rgba(129, 140, 248, 0.4);
+}
+
+.badge.ats-hackernews {
+    background: rgba(255, 138, 61, 0.18);
+    color: #ffab6e;
+    border: 1px solid rgba(255, 138, 61, 0.45);
+}
+
+.badge.ats-arbeitnow {
+    background: rgba(163, 230, 53, 0.16);
+    color: #bef264;
+    border: 1px solid rgba(163, 230, 53, 0.4);
+}
+
+.badge.ats-jobicy {
+    background: rgba(217, 70, 239, 0.16);
+    color: #f0abfc;
+    border: 1px solid rgba(217, 70, 239, 0.4);
+}
+
+.badge.ats-himalayas {
+    background: rgba(56, 189, 248, 0.16);
+    color: #7dd3fc;
+    border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.badge.ats-themuse {
+    background: rgba(232, 121, 249, 0.16);
+    color: #f5b7fb;
+    border: 1px solid rgba(232, 121, 249, 0.4);
+}
+
+.badge.ats-remoteok {
+    background: rgba(74, 222, 128, 0.16);
+    color: #86efac;
+    border: 1px solid rgba(74, 222, 128, 0.4);
+}
+
+.badge.ats-weworkremotely {
+    background: rgba(250, 204, 21, 0.16);
+    color: #fde047;
+    border: 1px solid rgba(250, 204, 21, 0.4);
+}
+
+.badge.ats-usajobs {
+    background: rgba(167, 139, 250, 0.18);
+    color: #c4b5fd;
+    border: 1px solid rgba(167, 139, 250, 0.4);
 }
 
 .badge.ats-unknown {
-    background: #f1f5f9;
-    color: #64748b;
+    background: rgba(148, 163, 184, 0.12);
+    color: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.3);
 }
 
 
@@ -564,7 +836,7 @@ thead.sorting-locked th,
     flex-shrink: 0;
     border-radius: 6px;
     accent-color: var(--accent);
-    box-shadow: 0 0 0 2px #fff, 0 0 0 5px rgba(0, 115, 177, .25);
+    box-shadow: 0 0 0 2px rgba(10, 11, 14, 0.9), 0 0 0 5px rgba(63, 169, 245, .3);
 }
 
 .job-table td.checkbox-cell input.form-check-input.apply-checkbox {
@@ -574,23 +846,12 @@ thead.sorting-locked th,
     flex-shrink: 0;
     border-radius: 6px;
     accent-color: var(--accent);
-    box-shadow: 0 0 0 2px #fff, 0 0 0 5px rgba(0, 115, 177, .25);
+    box-shadow: 0 0 0 2px rgba(10, 11, 14, 0.9), 0 0 0 5px rgba(63, 169, 245, .3);
 }
 
 .job-table td.checkbox-cell input.form-check-input:hover {
-    box-shadow: 0 0 0 2px #fff, 0 0 0 7px rgba(0, 115, 177, .35);
+    box-shadow: 0 0 0 2px rgba(10, 11, 14, 0.9), 0 0 0 7px rgba(63, 169, 245, .4);
     cursor: pointer;
-}
-
-.donate-section {
-    text-align: center;
-    padding: 20px;
-    font-size: 14px;
-    color: #666;
-}
-
-.paypal-donate-form {
-    margin-top: 10px;
 }
 
 .mobile-sort-bar {
@@ -603,7 +864,8 @@ thead.sorting-locked th,
 @media (max-width: 900px) {
     body {
         padding: 12px 6px;
-        background: linear-gradient(135deg, #dfe9f3 0%, #c9d6ea 100%);
+        background: var(--bg-gradient);
+        background-color: #000;
     }
 
     .job-table thead {
@@ -621,9 +883,15 @@ thead.sorting-locked th,
         align-items: center;
         gap: 20px;
         width: 100%;
+        background: var(--card-bg);
+        backdrop-filter: blur(18px) saturate(160%);
+        -webkit-backdrop-filter: blur(18px) saturate(160%);
+        border: none;
+        border-radius: 18px;
 
         /* give the top some breathing room from the caption */
         padding-top: 12px;
+        padding-bottom: 12px;
     }
 
     .job-table th,
@@ -632,28 +900,21 @@ thead.sorting-locked th,
         vertical-align: middle;
     }
 
-    #process-fab-container {
-        flex-direction: column;
-        padding: 10px;
-        gap: 8px;
-        right: 12px;
-        bottom: 12px;
-        border-radius: 20px;
-    }
-
     /* === CARD === */
+    /* No backdrop-filter here on purpose: with up to 50 cards on screen,
+       blurring each one individually is expensive to composite. A single
+       blurred backdrop behind the whole list (below) does the glass look
+       for the price of one blur pass instead of fifty. */
     .job-table tr {
         display: flex;
         flex-direction: column;
-        background: var(--card-bg);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border: 1px solid rgba(0, 115, 177, 0.3);
+        background: var(--gloss), var(--card-bg-strong);
+        border: 1px solid var(--card-border);
         border-radius: 18px;
         padding: 18px 20px;
         width: 95%;
         max-width: 620px;
-        box-shadow: 0 16px 32px rgba(0, 0, 0, 0.15);
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55);
         transform: translateY(-4px) scale(1.005);
         position: relative;
         overflow: hidden;
@@ -672,7 +933,7 @@ thead.sorting-locked th,
     .job-table td::before {
         content: attr(data-label);
         font-weight: 600;
-        color: #004f7c;
+        color: var(--accent-2);
         flex: 1 1 45%;
         min-width: 100px;
     }
@@ -686,7 +947,8 @@ thead.sorting-locked th,
 
     /* Link button */
     .job-table a {
-        background: var(--accent);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.02) 12%, rgba(255, 255, 255, 0) 20%, rgba(0, 0, 0, 0.14) 100%),
+            linear-gradient(180deg, var(--btn-blue-top) 0%, var(--btn-blue-mid) 55%, var(--btn-blue-bottom) 100%);
         color: white !important;
         padding: 8px 8px;
         border-radius: 8px;
@@ -696,14 +958,15 @@ thead.sorting-locked th,
         text-decoration: none;
         text-align: center;
         display: inline-block;
-        box-shadow: 0 2px 6px rgba(0, 115, 177, 0.3);
+        text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 2px 8px var(--glow);
         transition: all 0.2s ease;
     }
 
     .job-table a:hover {
-        background: var(--accent-hover);
+        filter: brightness(1.1);
         transform: translateY(-1px);
-        box-shadow: 0 4px 10px rgba(0, 115, 177, 0.4);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 4px 12px var(--glow);
     }
 
     .job-table caption {
@@ -711,7 +974,7 @@ thead.sorting-locked th,
         text-align: center;
         font-size: 1.2rem;
         font-weight: 700;
-        color: #004f7c;
+        color: var(--text);
         padding: 16px 8px 8px;
         background: transparent;
         border-radius: 0;
@@ -736,32 +999,32 @@ thead.sorting-locked th,
         border-radius: 8px;
         letter-spacing: 0.5px;
         white-space: nowrap;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
     }
 
     .badge.new {
-        background: linear-gradient(135deg, #a7d8f0, #d1ecf1);
-        color: #0c5460;
+        background: rgba(56, 189, 248, 0.18) !important;
+        color: #7dd3fc !important;
     }
 
     .badge.applied {
-        background: linear-gradient(135deg, #a8e6cf, #d4edda);
-        color: #155724;
+        background: rgba(16, 185, 129, 0.18) !important;
+        color: #6ee7b7 !important;
     }
 
     .badge.interview {
-        background: linear-gradient(135deg, #ffeaa7, #fff3cd);
-        color: #856404;
+        background: rgba(245, 158, 11, 0.18) !important;
+        color: #fcd34d !important;
     }
 
     .badge.rejected {
-        background: linear-gradient(135deg, #fca5a5, #f8d7da);
-        color: #721c24;
+        background: rgba(239, 68, 68, 0.18) !important;
+        color: #fca5a5 !important;
     }
 
     .badge.ignored {
-        background: linear-gradient(135deg, #fca5a5, #ffe6e6);
-        color: #c20000;
+        background: rgba(244, 63, 94, 0.16) !important;
+        color: #fda4af !important;
     }
 
     /* === CHECKBOXES === */
@@ -772,7 +1035,7 @@ thead.sorting-locked th,
         accent-color: var(--accent);
         cursor: pointer;
         border-radius: 6px;
-        box-shadow: 0 0 0 2px white, 0 0 0 5px rgba(0, 115, 177, 0.25);
+        box-shadow: 0 0 0 2px rgba(10, 11, 14, 0.9), 0 0 0 5px rgba(63, 169, 245, 0.3);
     }
 
     .job-table td.checkbox-cell {
@@ -851,7 +1114,7 @@ thead.sorting-locked th,
         accent-color: var(--accent);
         cursor: pointer;
         border-radius: 5px;
-        box-shadow: 0 0 0 1px white, 0 0 0 3px rgba(0, 115, 177, 0.25);
+        box-shadow: 0 0 0 1px rgba(10, 11, 14, 0.9), 0 0 0 3px rgba(63, 169, 245, 0.3);
     }
 
     /* Stack pagination controls vertically */
@@ -894,13 +1157,22 @@ thead.sorting-locked th,
 
 .dropdown-menu {
     width: 260px;
+    background: var(--card-bg-strong);
+    backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid var(--card-border);
 }
 
-
+/* ========================================
+   TASKBAR-STYLE PAGINATION BAR
+   ======================================== */
 .pagination-controls {
-    background: rgba(255, 255, 255, 0.6);
-    padding: 12px;
-    border-radius: 10px;
+    background: var(--gloss), var(--card-bg);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    border: 1px solid var(--card-border);
+    padding: 10px 14px;
+    border-radius: 8px;
+    box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 -1px 0 rgba(0, 0, 0, 0.3);
 }
 
 #loading {
