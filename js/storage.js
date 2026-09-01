@@ -14,6 +14,16 @@ export function loadApplicationStatus() {
     }
 }
 
+/**
+ * Resolve a job's effective status. A job with no explicit record is
+ * "saved" by default - untouched jobs are implicitly saved, not statusless,
+ * so this is the single source of truth for that default rather than every
+ * caller repeating `?.status || 'saved'`.
+ */
+export function getJobStatus(jobUrl) {
+    return loadApplicationStatus()[jobUrl]?.status || 'saved';
+}
+
 /** Save a job's application status */
 export function saveApplicationStatus(jobUrl, status) {
     const apps = loadApplicationStatus();

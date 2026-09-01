@@ -3,8 +3,6 @@
 // ============================================================
 import { sortJobs } from './sort_logic.js';
 
-let masterJobs = [];
-
 self.onmessage = async ({ data }) => {
     // ── SORTING REQUEST ──────────────────────────────────────
     if (data.type === 'SORT') {
@@ -26,10 +24,9 @@ self.onmessage = async ({ data }) => {
             const ds = new DecompressionStream('gzip');
             const text = await new Response(blob.stream().pipeThrough(ds)).blob().then(b => b.text());
             const newJobs = JSON.parse(text);
-            masterJobs.push(...newJobs);
-            self.postMessage({ type: 'CHUNK_LOADED', jobsChunk: newJobs });
+            self.postMessage({ type: 'CHUNK_LOADED', chunkIndex: data.chunkIndex, jobsChunk: newJobs });
         } catch (err) {
-            self.reportError(err);
+            self.postMessage({ type: 'CHUNK_ERROR', chunkIndex: data.chunkIndex, message: String(err?.stack || err) });
         }
     }
 };

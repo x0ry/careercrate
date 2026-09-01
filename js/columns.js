@@ -3,7 +3,7 @@
 // ============================================================
 
 import { escape } from './ui_utils.js';
-import { loadApplicationStatus } from './storage.js';
+import { getJobStatus } from './storage.js';
 
 /** Build and return the column definitions for the job table */
 export function createColumns() {
@@ -37,6 +37,16 @@ export function createColumns() {
                     'bamboohr': 'ats-bamboohr',
                     'workable': 'ats-workable',
                     'paylocity': 'ats-paylocity',
+                    'smartrecruiters': 'ats-smartrecruiters',
+                    'recruitee': 'ats-recruitee',
+                    'hackernews': 'ats-hackernews',
+                    'arbeitnow': 'ats-arbeitnow',
+                    'jobicy': 'ats-jobicy',
+                    'himalayas': 'ats-himalayas',
+                    'themuse': 'ats-themuse',
+                    'remoteok': 'ats-remoteok',
+                    'weworkremotely': 'ats-weworkremotely',
+                    'usajobs': 'ats-usajobs',
                 };
                 const cls = classes[ats.toLowerCase()] || 'ats-unknown';
                 return `<span class="badge ${cls}">${escape(ats)}</span>`;
@@ -75,21 +85,29 @@ export function createColumns() {
             sortable: false,
             render: job => {
                 const url = job.absolute_url || job.url;
+                // Every job is implicitly "saved" until explicitly marked
+                // otherwise - a radio group (not independent checkboxes)
+                // models that correctly: exactly one of the three is always
+                // the active state, defaulting to Saved, and the browser
+                // enforces the exclusivity for free.
+                const status = getJobStatus(url);
+                const checkedAttr = s => s === status ? 'checked' : '';
+                const name = `status-${escape(url)}`;
                 return `
                     <div class="btn-group" role="group">
-                        <input type="checkbox" class="btn-check save-checkbox"
-                               id="save-${escape(url)}"
-                               data-job-url="${escape(url)}">
+                        <input type="radio" class="btn-check save-checkbox"
+                               name="${name}" id="save-${escape(url)}"
+                               data-job-url="${escape(url)}" ${checkedAttr('saved')}>
                         <label class="btn btn-sm btn-outline-primary" for="save-${escape(url)}">Saved</label>
 
-                        <input type="checkbox" class="btn-check apply-checkbox"
-                               id="apply-${escape(url)}"
-                               data-job-url="${escape(url)}">
+                        <input type="radio" class="btn-check apply-checkbox"
+                               name="${name}" id="apply-${escape(url)}"
+                               data-job-url="${escape(url)}" ${checkedAttr('applied')}>
                         <label class="btn btn-sm btn-outline-success" for="apply-${escape(url)}">Applied</label>
 
-                        <input type="checkbox" class="btn-check ignored-checkbox"
-                               id="ignore-${escape(url)}"
-                               data-job-url="${escape(url)}">
+                        <input type="radio" class="btn-check ignored-checkbox"
+                               name="${name}" id="ignore-${escape(url)}"
+                               data-job-url="${escape(url)}" ${checkedAttr('ignored')}>
                         <label class="btn btn-sm btn-outline-secondary" for="ignore-${escape(url)}">Ignored</label>
                     </div>`;
             }

@@ -3,7 +3,7 @@
 // ============================================================
 
 import { escapeRegex } from './ui_utils.js';
-import { loadApplicationStatus } from './storage.js';
+import { getJobStatus } from './storage.js';
 
 /**
  * Read current filter values from the DOM.
@@ -64,7 +64,6 @@ function fuzzyMatch(search, text, threshold = 0.75) {
  */
 export function filterJobs(allJobs) {
     const f = readFilterInputs();
-    const apps = loadApplicationStatus();
 
     const titleRegex = f.title ? new RegExp(`\\b${escapeRegex(f.title)}\\b`, 'i') : null;
     const companyRegex = f.company ? new RegExp(`\\b${escapeRegex(f.company)}\\b`, 'i') : null;
@@ -88,9 +87,11 @@ export function filterJobs(allJobs) {
         // Recruiter filter
         if (f.hideRecruiters && job.is_recruiter === true) return false;
 
-        // Application status
-        const url = job.url;
-        const jobStatus = apps[url]?.status || '';
+        // Application status - matches the key columns.js writes status
+        // under (absolute_url when present), and defaults to "saved" for
+        // any job with no explicit record.
+        const url = job.absolute_url || job.url;
+        const jobStatus = getJobStatus(url);
 
         if (f.hideApplied && (jobStatus === 'applied' || jobStatus === 'ignored')) return false;
         if (f.status && jobStatus !== f.status) return false;

@@ -75,22 +75,6 @@ export function showToast(message, type = 'primary') {
     };
 }
 
-/** Disable/enable UI controls and set cursor */
-export function setUIBusy(isBusy) {
-    const controls = ['#apply-filters', '#clear-filters', '#prev-page', '#next-page'];
-    controls.forEach(sel => {
-        const el = document.querySelector(sel);
-        if (el) el.disabled = isBusy;
-    });
-    document.body.style.cursor = isBusy ? 'wait' : 'default';
-}
-
-/** Show/hide the floating action button based on checkbox state */
-export function updateFABVisibility() {
-    const anyChecked = document.querySelectorAll('.save-checkbox:checked, .apply-checkbox:checked, .ignored-checkbox:checked').length > 0;
-    const fabContainer = document.getElementById('process-fab-container');
-    fabContainer.style.display = anyChecked ? 'block' : 'none';
-}
 
 /** Parse salary string into { min, max } yearly values */
 export function parseSalary(salaryString) {

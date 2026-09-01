@@ -2,8 +2,7 @@
 // JOB BOARD APP 
 // ============================================================
 
-import { showToast, showLoadingToast, setUIBusy, updateFABVisibility, updateSortIndicators } from './ui_utils.js';
-import { saveApplicationStatus } from './storage.js';
+import { showToast, showLoadingToast, updateSortIndicators } from './ui_utils.js';
 import { createColumns } from './columns.js';
 import { loadJobsProgressive, updateStats } from './jobs_loader.js';
 import { filterJobs, clearFilterInputs } from './filters.js';
@@ -12,6 +11,13 @@ import { updateURL, loadFromURL } from './url_state.js';
 import { setupEventListeners } from './events.js';
 import { sortJobs } from './sort_logic.js';
 import { toggleView, updateHeatmapIfVisible } from './map_view.js';
+
+// Applied on first load only, when the URL carries no filters of its own
+// (e.g. a shared/bookmarked link). "Nashville" (not "Nashville, Tennessee")
+// matches real location strings like "Nashville, TN" and
+// "United States - Tennessee - Nashville" since the location filter does a
+// substring/fuzzy match against whatever the ATS returned.
+const DEFAULT_FILTERS = { title: 'AI', location: 'Nashville' };
 
 class JobBoardApp {
     constructor() {
@@ -56,7 +62,7 @@ class JobBoardApp {
             loadingEl.style.display = 'none';
             resultsEl.style.display = 'block';
 
-            console.log(`Loaded ${this.allJobs.length} jobs (more loading...)`);
+            console.log(`Loaded ${this.allJobs.length} jobs${this.isFullyLoaded ? '' : ' (more loading...)'}`);
 
         } catch (error) {
             console.error('Error loading jobs:', error);
@@ -206,39 +212,13 @@ class JobBoardApp {
         const { hasFilters, page, sortKey, sortDir } = loadFromURL();
         this.currentPage = page;
         if (sortKey) this.sortState = { key: sortKey, direction: sortDir };
-        if (hasFilters) this.applyFilters();
-    }
 
-    // ── Batch Processing ─────────────────────────────────────
-    handleBatch() {
-        const selected = document.querySelectorAll('.save-checkbox:checked, .apply-checkbox:checked, .ignored-checkbox:checked');
-        if (selected.length === 0) {
-            showToast('Please select at least one job first.', 'warning');
-            return;
-        }
-
-        setUIBusy(true);
-
-        try {
-            document.querySelectorAll('.save-checkbox:checked').forEach(box => {
-                if (box.dataset.jobUrl) saveApplicationStatus(box.dataset.jobUrl, 'saved');
-            });
-            document.querySelectorAll('.apply-checkbox:checked').forEach(box => {
-                if (box.dataset.jobUrl) saveApplicationStatus(box.dataset.jobUrl, 'applied');
-            });
-            document.querySelectorAll('.ignored-checkbox:checked').forEach(box => {
-                if (box.dataset.jobUrl) saveApplicationStatus(box.dataset.jobUrl, 'ignored');
-            });
-
-            showToast(`Updated ${selected.length} job(s) successfully!`, 'success');
-            updateFABVisibility();
-            this.render();
-
-        } catch (err) {
-            showToast('Error updating job status.', 'danger');
-            console.error(err);
-        } finally {
-            setUIBusy(false);
+        if (hasFilters) {
+            this.applyFilters();
+        } else {
+            document.getElementById('filter-title').value = DEFAULT_FILTERS.title;
+            document.getElementById('filter-location').value = DEFAULT_FILTERS.location;
+            this.applyFilters();
         }
     }
 

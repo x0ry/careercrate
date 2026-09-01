@@ -2,10 +2,16 @@
 // EVENT LISTENERS
 // ============================================================
 
-import { escape, showToast, updateFABVisibility } from './ui_utils.js';
+import { escape, showToast } from './ui_utils.js';
 import { saveApplicationStatus, deleteApplicationStatus } from './storage.js';
 
 const ACTION_CHECKBOXES = ['.save-checkbox', '.apply-checkbox', '.ignored-checkbox'];
+const STATUS_BY_CLASS = {
+    'save-checkbox': 'saved',
+    'apply-checkbox': 'applied',
+    'ignored-checkbox': 'ignored',
+};
+const STATUS_LABEL = { saved: 'Saved', applied: 'Applied', ignored: 'Ignored' };
 
 /**
  * Wire up all DOM event listeners.
@@ -85,32 +91,25 @@ export function setupEventListeners(app) {
     document.getElementById('filter-skill-level').addEventListener('change', () => app.applyFilters());
     document.getElementById('filter-hide-applied').addEventListener('change', () => app.applyFilters());
 
-    // ── Batch processing ─────────────────────────────────────
-    document.getElementById('process-batch').addEventListener('click', () => app.handleBatch());
-    document.getElementById('process-fab').addEventListener('click', () => app.handleBatch());
-
-    // ── Delegated: FAB visibility on checkbox toggle ─────────
+    // ── Delegated: status radio click commits immediately ──
+    // Saved/Applied/Ignored is a radio group now (see columns.js) - the
+    // browser already guarantees exactly one is active, so this just
+    // persists whichever one fired. "Saved" is the implicit default for
+    // any job with no record, so selecting it clears the record instead of
+    // writing a redundant explicit one.
     document.addEventListener('change', (e) => {
-        if (e.target.matches(ACTION_CHECKBOXES.join(', '))) {
-            updateFABVisibility();
-        }
-    });
-
-    // ── Delegated: mutual exclusion (only one state at a time) ──
-    document.addEventListener('change', (e) => {
-        if (!e.target.matches(ACTION_CHECKBOXES.join(', ')) || !e.target.checked) return;
+        if (!e.target.matches(ACTION_CHECKBOXES.join(', '))) return;
 
         const jobUrl = e.target.dataset.jobUrl;
-        const allClasses = ['save-checkbox', 'apply-checkbox', 'ignored-checkbox'];
-        const clickedClass = allClasses.find(cls => e.target.classList.contains(cls));
+        const clickedClass = Object.keys(STATUS_BY_CLASS).find(cls => e.target.classList.contains(cls));
+        const status = STATUS_BY_CLASS[clickedClass];
 
-        // Uncheck the other two
-        allClasses.forEach(cls => {
-            if (cls !== clickedClass) {
-                const other = document.querySelector(`.${cls}[data-job-url="${CSS.escape(jobUrl)}"]`);
-                if (other) other.checked = false;
-            }
-        });
+        if (status === 'saved') {
+            deleteApplicationStatus(jobUrl);
+        } else {
+            saveApplicationStatus(jobUrl, status);
+        }
+        showToast(`Marked as ${STATUS_LABEL[status]}.`, 'success');
     });
 
     const filterCollapse = document.getElementById('filter-controls');
