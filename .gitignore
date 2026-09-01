@@ -47,6 +47,9 @@ js/old_script.js
 # Scraper output
 scripts/output/
 
+# Generated job export (scripts/export_jobs_md.py)
+/job.md
+
 # Test Files
 scripts/tests/test_icims.py
 scripts/tests/test_workday.py
