@@ -30,7 +30,7 @@ import {
  * @param {object} app
  * @param {string} basePath
  */
-export async function loadJobsProgressive(app, basePath = 'https://x0ry.github.io/job-board-data/data/chunks') {
+export async function loadJobsProgressive(app, basePath = 'data/chunks') {
     const thead = document.querySelector('.job-table thead');
     thead?.classList.add('sorting-locked');
 
