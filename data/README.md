@@ -1,6 +1,6 @@
 # job-board-data
 
-Generated data store for [job-board-aggregator](https://github.com/Feashliaa/job-board-aggregator).
+Generated data store for [careercrate](https://github.com/x0ry/careercrate).
 
 This repo holds the chunked, gzipped job data (`data/chunks/*.json.gz` plus
 `jobs_manifest.json`) served to the live site over GitHub Pages.
