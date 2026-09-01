@@ -2,6 +2,7 @@ import requests, threading, json, random, time, re, os, gzip, argparse, html
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from email.utils import parsedate_to_datetime
 from urllib.parse import unquote
 from geolocation import build_lookup, lookup_location
 from requests.adapters import HTTPAdapter
@@ -19,6 +20,9 @@ WORKDAY_FILE = os.path.join(ROOT_DIR, "data", "workday_companies.json")
 LEVER_FILE = os.path.join(ROOT_DIR, "data", "lever_companies.json")
 ICIMS_FILE = os.path.join(ROOT_DIR, "data", "icims_companies.json")
 PAYLOCITY_FILE = os.path.join(ROOT_DIR, "data", "paylocity_companies_clean.json")
+WORKABLE_FILE = os.path.join(ROOT_DIR, "data", "workable_companies.json")
+SMARTRECRUITERS_FILE = os.path.join(ROOT_DIR, "data", "smartrecruiters_companies.json")
+RECRUITEE_FILE = os.path.join(ROOT_DIR, "data", "recruitee_companies.json")
 
 LOCATIONS_FILE = os.path.join(ROOT_DIR, "data", "locations.json")
 
@@ -605,7 +609,219 @@ def fetch_company_jobs_icims(slug):
         return slug, [], None
 
 
-# TODO - Add Workable
+def fetch_company_jobs_workable(slug):
+    """https://apply.workable.com/api/v1/widget/accounts/{slug}
+    Public widget API backing Workable's embeddable job list. No auth.
+    """
+    url = f"https://apply.workable.com/api/v1/widget/accounts/{slug}"
+
+    time.sleep(random.uniform(0.5, 2.0))
+
+    max_retries = 2
+    for attempt in range(max_retries + 1):
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": random.choice(USER_AGENTS),
+        }
+        try:
+            response = requests.get(url, timeout=30, headers=headers)
+        except Exception as e:
+            print(f"Error fetching Workable for {slug}: {e}")
+            return slug, [], None
+
+        if response.status_code == 200:
+            break
+        if response.status_code in (429, 503, 502):
+            if attempt < max_retries:
+                time.sleep((2**attempt) + random.uniform(0.5, 1.5))
+                continue
+        return slug, [], response.status_code
+
+    try:
+        data = response.json()
+    except ValueError:
+        return slug, [], 200
+
+    company = data.get("name") or slug
+    jobs = data.get("jobs") or []
+
+    normalized = []
+    for job in jobs:
+        city, state, country = job.get("city"), job.get("state"), job.get("country")
+        location = ", ".join(filter(None, [city, state, country])) or "Not specified"
+        remote, coords = enrich_location(location)
+        remote = bool(job.get("telecommuting")) or remote
+        normalized.append(
+            {
+                "company": company,
+                "company_slug": slug,
+                "title": job.get("title"),
+                "location": location[:50],
+                "remote": remote,
+                "coords": coords,
+                "url": job.get("shortlink") or job.get("url"),
+                "absolute_url": job.get("shortlink") or job.get("url"),
+                "departments": [job.get("department")] if job.get("department") else [],
+                "id": job.get("shortcode"),
+                "updated_at": job.get("published_on") or job.get("created_at"),
+                "is_recruiter": is_recruiter_company(company),
+                "ats": "Workable",
+                "skill_level": job_tier_classification(job.get("title", "")),
+                **get_job_metadata(),
+            }
+        )
+
+    return slug, normalized, response.status_code
+
+
+def fetch_company_jobs_smartrecruiters(slug):
+    """https://api.smartrecruiters.com/v1/companies/{slug}/postings
+    Public Posting API, no auth. Paginated via offset/limit.
+    """
+    api_url = f"https://api.smartrecruiters.com/v1/companies/{slug}/postings"
+    normalized = []
+    offset = 0
+    limit = 100
+    max_retries = 2
+    last_status = None
+
+    while True:
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": random.choice(USER_AGENTS),
+        }
+        for attempt in range(max_retries + 1):
+            try:
+                response = requests.get(
+                    api_url,
+                    params={"offset": offset, "limit": limit},
+                    headers=headers,
+                    timeout=30,
+                )
+            except Exception as e:
+                print(f"Error fetching SmartRecruiters for {slug}: {e}")
+                return slug, normalized, last_status
+
+            last_status = response.status_code
+            if response.status_code == 200:
+                break
+            if response.status_code in (429, 503, 502) and attempt < max_retries:
+                time.sleep((2**attempt) + random.uniform(0.5, 1.5))
+                continue
+            return slug, normalized, response.status_code
+
+        data = response.json()
+        content = data.get("content") or []
+        total = data.get("totalFound", 0)
+
+        if not content:
+            break
+
+        for job in content:
+            loc = job.get("location") or {}
+            city = loc.get("city")
+            region = loc.get("region")
+            country = loc.get("country")
+            location = ", ".join(filter(None, [city, region, country])) or "Not specified"
+            remote, coords = enrich_location(location)
+            remote = bool(loc.get("remote")) or remote
+            job_id = job.get("id")
+            company_name = (job.get("company") or {}).get("name") or slug
+            dept = (job.get("department") or {}).get("label")
+            normalized.append(
+                {
+                    "company": company_name,
+                    "company_slug": slug,
+                    "title": job.get("name"),
+                    "location": location[:50],
+                    "remote": remote,
+                    "coords": coords,
+                    "url": f"https://jobs.smartrecruiters.com/{slug}/{job_id}",
+                    "absolute_url": f"https://jobs.smartrecruiters.com/{slug}/{job_id}",
+                    "departments": [dept] if dept else [],
+                    "id": job_id,
+                    "updated_at": job.get("releasedDate"),
+                    "is_recruiter": is_recruiter_company(company_name),
+                    "ats": "SmartRecruiters",
+                    "skill_level": job_tier_classification(job.get("name", "")),
+                    **get_job_metadata(),
+                }
+            )
+
+        offset += limit
+        if offset >= total:
+            break
+        time.sleep(random.uniform(0.3, 1.0))
+
+    return slug, normalized, last_status
+
+
+def fetch_company_jobs_recruitee(slug):
+    """https://{slug}.recruitee.com/api/offers/
+    Public careers-site API, no auth.
+    """
+    url = f"https://{slug}.recruitee.com/api/offers/"
+
+    time.sleep(random.uniform(0.5, 2.0))
+
+    max_retries = 2
+    for attempt in range(max_retries + 1):
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": random.choice(USER_AGENTS),
+        }
+        try:
+            response = requests.get(url, timeout=30, headers=headers)
+        except Exception as e:
+            print(f"Error fetching Recruitee for {slug}: {e}")
+            return slug, [], None
+
+        if response.status_code == 200:
+            break
+        if response.status_code in (429, 503, 502):
+            if attempt < max_retries:
+                time.sleep((2**attempt) + random.uniform(0.5, 1.5))
+                continue
+        return slug, [], response.status_code
+
+    try:
+        data = response.json()
+    except ValueError:
+        return slug, [], 200
+
+    offers = data.get("offers") or []
+    normalized = []
+    for job in offers:
+        city, state, country = (
+            job.get("city"),
+            job.get("state_code"),
+            job.get("country_code"),
+        )
+        location = ", ".join(filter(None, [city, state, country])) or "Not specified"
+        remote, coords = enrich_location(location)
+        remote = bool(job.get("remote")) or remote
+        job_url = job.get("careers_url") or url
+        normalized.append(
+            {
+                "company": job.get("company_name") or slug,
+                "company_slug": slug,
+                "title": job.get("title"),
+                "location": location[:50],
+                "remote": remote,
+                "coords": coords,
+                "url": job_url,
+                "absolute_url": job_url,
+                "departments": [job.get("department")] if job.get("department") else [],
+                "id": job.get("id"),
+                "updated_at": job.get("published_at") or job.get("created_at"),
+                "is_recruiter": is_recruiter_company(job.get("company_name") or slug),
+                "ats": "Recruitee",
+                "skill_level": job_tier_classification(job.get("title", "")),
+                **get_job_metadata(),
+            }
+        )
+
+    return slug, normalized, response.status_code
 
 
 def _paylocity_location(j):
@@ -700,6 +916,668 @@ def fetch_company_jobs_paylocity(slug):
     return slug, [], None
 
 
+# ============================================================
+# AGGREGATOR SOURCES
+# ============================================================
+# Unlike the ATS platforms above (one API per company, fetched by slug), these
+# are single feeds that each return jobs from many companies in one shot. All
+# are free, public, and either explicitly encourage third-party use (Hacker
+# News) or publish an unauthenticated JSON API meant for exactly this kind of
+# reuse (with light attribution asks, satisfied by our own `ats` badge + the
+# direct link-through to their `url`).
+
+
+def _build_salary_estimate(min_v, max_v, currency, period):
+    """Build a {p25, median, p75, n} estimate from a source's own stated range.
+    n=1 signals "this is the single reported range from the listing itself",
+    not an aggregated percentile stat like the internal salary_lookup produces.
+    Only trusted when it's a plain annual USD figure - anything else (hourly,
+    non-USD) would render misleadingly through the frontend's flat '$Nk' format.
+    """
+    if currency and currency.upper() != "USD":
+        return None
+    if period and period.lower() not in ("year", "yearly", "annual", "annually"):
+        return None
+    lo = min_v or max_v
+    hi = max_v or min_v
+    if not lo or lo <= 0:
+        return None
+    return {"p25": lo, "median": round((lo + hi) / 2), "p75": hi, "n": 1}
+
+
+_HN_NONTITLE_TOKENS = (
+    "remote", "onsite", "on-site", "on site", "hybrid",
+    "full-time", "full time", "part-time", "part time",
+    "contract", "contractor", "freelance", "internship", "intern",
+)
+
+
+def _hn_strip_html(text):
+    if not text:
+        return ""
+    text = re.sub(r"<p>", "\n", text)
+    text = re.sub(r"<[^>]+>", "", text)
+    return html.unescape(text).strip()
+
+
+def _parse_hn_job_comment(comment):
+    """Best-effort parse of the community "Company | Title | Location | ..."
+    convention used in HN's Who is Hiring threads. Not everyone follows it
+    exactly, so entries that don't yield a confident company + title are
+    skipped rather than shown with guessed/garbled fields."""
+    plain = _hn_strip_html(comment.get("text"))
+    header = plain.split("\n", 1)[0].strip()
+    if not header:
+        return None
+
+    parts = [p.strip() for p in header.split("|") if p.strip()]
+    if len(parts) < 2:
+        return None
+
+    company = re.sub(r"\s*\(https?://\S+\)\s*", " ", parts[0]).strip()
+    if not company:
+        return None
+
+    title = None
+    for part in parts[1:4]:
+        lowered = part.lower()
+        if any(tok in lowered for tok in _HN_NONTITLE_TOKENS) or len(part) > 100:
+            continue
+        title = part
+        break
+    if not title:
+        return None
+
+    location = "Not specified"
+    for part in parts[1:]:
+        lowered = part.lower()
+        if "remote" in lowered or "onsite" in lowered or "hybrid" in lowered or "," in part:
+            location = part
+            break
+
+    return {"company": company, "title": title, "location": location, "remote": "remote" in header.lower()}
+
+
+def fetch_source_hn_who_is_hiring():
+    """Current-month "Ask HN: Who is hiring?" thread via HN's official, keyless
+    Algolia API - YC explicitly built this for third-party use, no ToS risk.
+    Postings are free text, not structured JSON, so parsing is best-effort.
+    """
+    try:
+        headers = {"User-Agent": random.choice(USER_AGENTS)}
+        search_resp = requests.get(
+            "https://hn.algolia.com/api/v1/search_by_date",
+            params={"tags": "story", "query": "Who is hiring", "restrictSearchableAttributes": "title"},
+            headers=headers, timeout=30,
+        )
+        if search_resp.status_code != 200:
+            return []
+        hits = search_resp.json().get("hits", [])
+        story = next((h for h in hits if (h.get("title") or "").startswith("Ask HN: Who is hiring?")), None)
+        if not story:
+            return []
+
+        thread_resp = requests.get(
+            f"https://hn.algolia.com/api/v1/items/{story['objectID']}", headers=headers, timeout=30
+        )
+        if thread_resp.status_code != 200:
+            return []
+        thread = thread_resp.json()
+
+        normalized = []
+        for comment in thread.get("children") or []:
+            if comment.get("type") != "comment" or not comment.get("author") or not comment.get("text"):
+                continue
+            parsed = _parse_hn_job_comment(comment)
+            if not parsed:
+                continue
+
+            inferred_remote, coords = enrich_location(parsed["location"])
+            comment_url = f"https://news.ycombinator.com/item?id={comment.get('id')}"
+            normalized.append(
+                {
+                    "company": parsed["company"],
+                    "company_slug": parsed["company"].lower().replace(" ", "-"),
+                    "title": parsed["title"],
+                    "location": parsed["location"][:50],
+                    "remote": parsed["remote"] or inferred_remote,
+                    "coords": coords,
+                    "url": comment_url,
+                    "absolute_url": comment_url,
+                    "departments": [],
+                    "id": comment.get("id"),
+                    "updated_at": comment.get("created_at"),
+                    "is_recruiter": is_recruiter_company(parsed["company"]),
+                    "ats": "HackerNews",
+                    "skill_level": job_tier_classification(parsed["title"]),
+                    **get_job_metadata(),
+                }
+            )
+        return normalized
+    except Exception as e:
+        print(f"Error fetching HN Who is Hiring: {e}")
+        return []
+
+
+def fetch_source_arbeitnow():
+    """https://www.arbeitnow.com/api/job-board-api - free public API. Terms ask
+    only that you don't abuse it and link back to the site."""
+    normalized = []
+    page = 1
+    max_retries = 2
+
+    while page <= 200:  # safety valve
+        headers = {"Accept": "application/json", "User-Agent": random.choice(USER_AGENTS)}
+        resp = None
+        for attempt in range(max_retries + 1):
+            try:
+                resp = requests.get(
+                    "https://www.arbeitnow.com/api/job-board-api",
+                    params={"page": page}, headers=headers, timeout=30,
+                )
+            except Exception as e:
+                print(f"Error fetching Arbeitnow page {page}: {e}")
+                return normalized
+            if resp.status_code == 200:
+                break
+            if resp.status_code in (429, 503, 502) and attempt < max_retries:
+                time.sleep((2**attempt) + random.uniform(0.5, 1.5))
+                continue
+            return normalized
+
+        data = resp.json()
+        jobs = data.get("data") or []
+        if not jobs:
+            break
+
+        for job in jobs:
+            location = (job.get("location") or "Not specified")[:50]
+            inferred_remote, coords = enrich_location(location)
+            title = job.get("title", "")
+            created_at = job.get("created_at")
+            updated_at = (
+                datetime.fromtimestamp(created_at, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+                if created_at else None
+            )
+            normalized.append(
+                {
+                    "company": job.get("company_name"),
+                    "company_slug": (job.get("company_name") or "").lower().replace(" ", "-"),
+                    "title": title,
+                    "location": location,
+                    "remote": bool(job.get("remote")) or inferred_remote,
+                    "coords": coords,
+                    "url": job.get("url"),
+                    "absolute_url": job.get("url"),
+                    "departments": [],
+                    "id": job.get("slug"),
+                    "updated_at": updated_at,
+                    "is_recruiter": is_recruiter_company(job.get("company_name") or ""),
+                    "ats": "Arbeitnow",
+                    "skill_level": job_tier_classification(title),
+                    **get_job_metadata(),
+                }
+            )
+
+        if not (data.get("links") or {}).get("next"):
+            break
+        page += 1
+        time.sleep(random.uniform(0.3, 1.0))
+
+    return normalized
+
+
+def fetch_source_jobicy():
+    """https://jobicy.com/api/v2/remote-jobs - free public API, remote-only board.
+    Jobicy asks that they be credited and that apply buttons link to the job URL
+    given in the feed - both satisfied by our `ats` badge and direct `url` link."""
+    try:
+        headers = {"Accept": "application/json", "User-Agent": random.choice(USER_AGENTS)}
+        resp = requests.get(
+            "https://jobicy.com/api/v2/remote-jobs", params={"count": 200}, headers=headers, timeout=30
+        )
+        if resp.status_code != 200:
+            return []
+        jobs = resp.json().get("jobs") or []
+
+        normalized = []
+        for job in jobs:
+            location = (job.get("jobGeo") or "Remote")[:50]
+            _, coords = enrich_location(location)
+            title = job.get("jobTitle", "")
+            entry = {
+                "company": job.get("companyName"),
+                "company_slug": (job.get("companyName") or "").lower().replace(" ", "-"),
+                "title": title,
+                "location": location,
+                "remote": True,
+                "coords": coords,
+                "url": job.get("url"),
+                "absolute_url": job.get("url"),
+                "departments": job.get("jobIndustry") or [],
+                "id": job.get("id"),
+                "updated_at": job.get("pubDate"),
+                "is_recruiter": is_recruiter_company(job.get("companyName") or ""),
+                "ats": "Jobicy",
+                "skill_level": job_tier_classification(title),
+                **get_job_metadata(),
+            }
+            salary = _build_salary_estimate(
+                job.get("salaryMin"), job.get("salaryMax"), job.get("salaryCurrency"), job.get("salaryPeriod")
+            )
+            if salary:
+                entry["salary"] = salary
+            normalized.append(entry)
+        return normalized
+    except Exception as e:
+        print(f"Error fetching Jobicy: {e}")
+        return []
+
+
+def fetch_source_himalayas(max_pages=100):
+    """https://himalayas.app/jobs/api - free public API, remote-focused, cursor
+    paginated. Total historical volume is huge (100k+), so each run pulls a
+    capped number of most-recent pages rather than the entire archive."""
+    normalized = []
+    cursor = None
+    max_retries = 2
+
+    for _ in range(max_pages):
+        params = {"cursor": cursor} if cursor else {}
+        headers = {"Accept": "application/json", "User-Agent": random.choice(USER_AGENTS)}
+        resp = None
+        for attempt in range(max_retries + 1):
+            try:
+                resp = requests.get("https://himalayas.app/jobs/api", params=params, headers=headers, timeout=30)
+            except Exception as e:
+                print(f"Error fetching Himalayas: {e}")
+                return normalized
+            if resp.status_code == 200:
+                break
+            if resp.status_code in (429, 503, 502) and attempt < max_retries:
+                time.sleep((2**attempt) + random.uniform(0.5, 1.5))
+                continue
+            return normalized
+
+        data = resp.json()
+        jobs = data.get("jobs") or []
+        if not jobs:
+            break
+
+        for job in jobs:
+            locations = job.get("locationRestrictions") or []
+            location = (", ".join(locations) or "Remote")[:50]
+            _, coords = enrich_location(location)
+            title = job.get("title", "")
+            pub = job.get("pubDate")
+            updated_at = (
+                datetime.fromtimestamp(pub, tz=timezone.utc).isoformat().replace("+00:00", "Z") if pub else None
+            )
+            job_url = job.get("applicationLink") or job.get("guid")
+            entry = {
+                "company": job.get("companyName"),
+                "company_slug": job.get("companySlug"),
+                "title": title,
+                "location": location,
+                "remote": True,
+                "coords": coords,
+                "url": job_url,
+                "absolute_url": job_url,
+                "departments": job.get("parentCategories") or [],
+                "id": job.get("guid"),
+                "updated_at": updated_at,
+                "is_recruiter": is_recruiter_company(job.get("companyName") or ""),
+                "ats": "Himalayas",
+                "skill_level": job_tier_classification(title),
+                **get_job_metadata(),
+            }
+            salary = _build_salary_estimate(
+                job.get("minSalary"), job.get("maxSalary"), job.get("currency"), job.get("salaryPeriod")
+            )
+            if salary:
+                entry["salary"] = salary
+            normalized.append(entry)
+
+        cursor = data.get("nextCursor")
+        if not cursor:
+            break
+        time.sleep(random.uniform(0.3, 1.0))
+
+    return normalized
+
+
+def fetch_source_themuse(max_pages=150):
+    """https://www.themuse.com/api/public/jobs - free public API, no key required
+    (keyless access allows 500 req/hour, far above what one run here uses). The
+    catalog is huge (~400k) and not reliably sorted by recency, so each run pulls
+    a capped number of pages rather than the whole archive."""
+    normalized = []
+    max_retries = 2
+
+    for page in range(1, max_pages + 1):
+        headers = {"Accept": "application/json", "User-Agent": random.choice(USER_AGENTS)}
+        resp = None
+        for attempt in range(max_retries + 1):
+            try:
+                resp = requests.get(
+                    "https://www.themuse.com/api/public/jobs", params={"page": page}, headers=headers, timeout=30
+                )
+            except Exception as e:
+                print(f"Error fetching The Muse page {page}: {e}")
+                return normalized
+            if resp.status_code == 200:
+                break
+            if resp.status_code in (429, 503, 502) and attempt < max_retries:
+                time.sleep((2**attempt) + random.uniform(0.5, 1.5))
+                continue
+            return normalized
+
+        data = resp.json()
+        results = data.get("results") or []
+        if not results:
+            break
+
+        for job in results:
+            locations = [loc.get("name") for loc in (job.get("locations") or []) if loc.get("name")]
+            location = (", ".join(locations) or "Not specified")[:50]
+            inferred_remote, coords = enrich_location(location)
+            title = job.get("name", "")
+            company = (job.get("company") or {}).get("name")
+            job_url = (job.get("refs") or {}).get("landing_page")
+            categories = [c.get("name") for c in (job.get("categories") or []) if c.get("name")]
+
+            normalized.append(
+                {
+                    "company": company,
+                    "company_slug": (job.get("company") or {}).get("short_name"),
+                    "title": title,
+                    "location": location,
+                    "remote": inferred_remote,
+                    "coords": coords,
+                    "url": job_url,
+                    "absolute_url": job_url,
+                    "departments": categories,
+                    "id": job.get("id"),
+                    "updated_at": job.get("publication_date"),
+                    "is_recruiter": is_recruiter_company(company or ""),
+                    "ats": "TheMuse",
+                    "skill_level": job_tier_classification(title),
+                    **get_job_metadata(),
+                }
+            )
+
+        if page >= data.get("page_count", page):
+            break
+        time.sleep(random.uniform(0.3, 1.0))
+
+    return normalized
+
+
+def fetch_source_remoteok():
+    """https://remoteok.com/api - free public API. Their terms ask for a visible
+    backlink/mention as source, satisfied by our `ats` badge + direct `url` link."""
+    try:
+        headers = {"Accept": "application/json", "User-Agent": random.choice(USER_AGENTS)}
+        resp = requests.get("https://remoteok.com/api", headers=headers, timeout=30)
+        if resp.status_code != 200:
+            return []
+        rows = resp.json() or []
+        jobs = rows[1:] if rows and "legal" in rows[0] else rows
+
+        normalized = []
+        for job in jobs:
+            location = (job.get("location") or "").strip(", ") or "Remote"
+            location = location[:50]
+            _, coords = enrich_location(location)
+            title = job.get("position", "")
+            entry = {
+                "company": job.get("company"),
+                "company_slug": (job.get("company") or "").lower().replace(" ", "-"),
+                "title": title,
+                "location": location,
+                "remote": True,
+                "coords": coords,
+                "url": job.get("url") or job.get("apply_url"),
+                "absolute_url": job.get("url") or job.get("apply_url"),
+                "departments": job.get("tags") or [],
+                "id": job.get("id"),
+                "updated_at": job.get("date"),
+                "is_recruiter": is_recruiter_company(job.get("company") or ""),
+                "ats": "RemoteOK",
+                "skill_level": job_tier_classification(title),
+                **get_job_metadata(),
+            }
+            salary_min = job.get("salary_min") or 0
+            if salary_min > 0:
+                salary = _build_salary_estimate(salary_min, job.get("salary_max") or salary_min, "USD", "yearly")
+                if salary:
+                    entry["salary"] = salary
+            normalized.append(entry)
+        return normalized
+    except Exception as e:
+        print(f"Error fetching RemoteOK: {e}")
+        return []
+
+
+WWR_FEEDS = [
+    ("https://weworkremotely.com/categories/remote-programming-jobs.rss", "Programming"),
+    ("https://weworkremotely.com/categories/remote-devops-sysadmin-jobs.rss", "DevOps & Sysadmin"),
+    ("https://weworkremotely.com/categories/remote-design-jobs.rss", "Design"),
+    ("https://weworkremotely.com/categories/remote-data-jobs.rss", "Data"),
+]
+
+
+def _parse_wwr_pubdate(raw):
+    """WWR's RSS pubDate is RFC 2822, unlike every other source in this file."""
+    if not raw:
+        return None
+    try:
+        return parsedate_to_datetime(raw).astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    except (ValueError, TypeError):
+        return None
+
+
+def fetch_source_weworkremotely():
+    """https://weworkremotely.com/categories/*.rss - public RSS feeds, no auth,
+    explicitly designed for this kind of consumption. Titles follow a
+    "Company: Job Title" convention; entries that don't match it are skipped
+    rather than guessed at (same philosophy as the HN parser). Pulls a fixed
+    set of tech-relevant category feeds rather than every WWR category,
+    matching this project's existing tech/startup slant; a URL-based dedup
+    guards against any cross-category overlap."""
+    normalized = []
+    seen_urls = set()
+    max_retries = 2
+
+    for feed_url, feed_name in WWR_FEEDS:
+        headers = {"Accept": "application/rss+xml, application/xml", "User-Agent": random.choice(USER_AGENTS)}
+        resp = None
+        for attempt in range(max_retries + 1):
+            try:
+                resp = requests.get(feed_url, headers=headers, timeout=30)
+            except Exception as e:
+                print(f"Error fetching WeWorkRemotely feed {feed_name}: {e}")
+                resp = None
+                break
+            if resp.status_code == 200:
+                break
+            if resp.status_code in (429, 503, 502) and attempt < max_retries:
+                time.sleep((2**attempt) + random.uniform(0.5, 1.5))
+                continue
+            resp = None
+            break
+        if resp is None:
+            continue
+
+        try:
+            root = ET.fromstring(resp.content)
+        except ET.ParseError as e:
+            print(f"Error parsing WeWorkRemotely feed {feed_name}: {e}")
+            continue
+
+        for item in root.findall(".//item"):
+            title_el = item.find("title")
+            raw_title = (title_el.text or "").strip() if title_el is not None else ""
+            if ":" not in raw_title:
+                continue  # doesn't follow "Company: Title" convention - skip rather than guess
+            company, _, title = raw_title.partition(":")
+            company, title = company.strip(), title.strip()
+            if not company or not title:
+                continue
+
+            link_el = item.find("link")
+            job_url = (link_el.text or "").strip() if link_el is not None else None
+            if not job_url or job_url in seen_urls:
+                continue
+            seen_urls.add(job_url)
+
+            region_el = item.find("region")
+            location = ((region_el.text or "").strip() if region_el is not None else "") or "Remote"
+            _, coords = enrich_location(location)
+
+            category_el = item.find("category")
+            dept = category_el.text.strip() if category_el is not None and category_el.text else feed_name
+
+            pubdate_el = item.find("pubDate")
+
+            normalized.append(
+                {
+                    "company": company,
+                    "company_slug": company.lower().strip().replace(" ", "-"),
+                    "title": title,
+                    "location": location[:50],
+                    "remote": True,
+                    "coords": coords,
+                    "url": job_url,
+                    "absolute_url": job_url,
+                    "departments": [dept],
+                    "id": job_url,
+                    "updated_at": _parse_wwr_pubdate(pubdate_el.text if pubdate_el is not None else None),
+                    "is_recruiter": is_recruiter_company(company),
+                    "ats": "WeWorkRemotely",
+                    "skill_level": job_tier_classification(title),
+                    **get_job_metadata(),
+                }
+            )
+
+        time.sleep(random.uniform(0.3, 1.0))
+
+    return normalized
+
+
+def fetch_source_usajobs():
+    """https://data.usajobs.gov/api/search - genuinely self-serve free API
+    (instant key by email registration, no approval queue), but the only
+    source in this file requiring a credential. Requires USAJOBS_API_KEY and
+    USAJOBS_USER_AGENT (the email you registered with) as environment
+    variables; degrades to a no-op if either is missing so the rest of the
+    run isn't affected. Filtered to the federal "Information Technology
+    Management" occupational series (2210) - the standard catch-all for
+    federal tech roles."""
+    api_key = os.environ.get("USAJOBS_API_KEY")
+    user_agent = os.environ.get("USAJOBS_USER_AGENT")
+    if not api_key or not user_agent:
+        print("USAJOBS_API_KEY/USAJOBS_USER_AGENT not set, skipping USAJobs")
+        return []
+
+    base_url = "https://data.usajobs.gov/api/search"
+    headers = {
+        "Host": "data.usajobs.gov",
+        "User-Agent": user_agent,
+        "Authorization-Key": api_key,
+    }
+
+    normalized = []
+    page = 1
+    max_retries = 2
+
+    while True:
+        params = {"JobCategoryCode": "2210", "ResultsPerPage": 500, "Page": page}
+        resp = None
+        for attempt in range(max_retries + 1):
+            try:
+                resp = requests.get(base_url, headers=headers, params=params, timeout=30)
+            except Exception as e:
+                print(f"Error fetching USAJobs page {page}: {e}")
+                return normalized
+            if resp.status_code == 200:
+                break
+            if resp.status_code in (429, 503, 502) and attempt < max_retries:
+                time.sleep((2**attempt) + random.uniform(0.5, 1.5))
+                continue
+            return normalized
+
+        data = resp.json()
+        items = (data.get("SearchResult") or {}).get("SearchResultItems") or []
+        if not items:
+            break
+
+        for item in items:
+            job = item.get("MatchedObjectDescriptor") or {}
+            title = job.get("PositionTitle", "")
+            org = job.get("OrganizationName") or job.get("DepartmentName") or "U.S. Government"
+            locations = job.get("PositionLocation") or []
+            location = (locations[0].get("LocationName") if locations else None) or "United States"
+            _, coords = enrich_location(location)
+
+            remuneration = job.get("PositionRemuneration") or []
+            salary = None
+            if remuneration:
+                pay = remuneration[0]
+                try:
+                    lo, hi = float(pay.get("MinimumRange")), float(pay.get("MaximumRange"))
+                except (TypeError, ValueError):
+                    lo = hi = None
+                if lo:
+                    salary = _build_salary_estimate(lo, hi, "USD", pay.get("RateIntervalCode", "Per Year"))
+
+            job_url = job.get("PositionURI") or (job.get("ApplyURI") or [None])[0]
+            entry = {
+                "company": org,
+                "company_slug": org.lower().strip().replace(" ", "-"),
+                "title": title,
+                "location": location[:50],
+                "remote": False,
+                "coords": coords,
+                "url": job_url,
+                "absolute_url": job_url,
+                "departments": [],
+                "id": job.get("PositionID"),
+                "updated_at": job.get("PositionStartDate"),
+                "is_recruiter": is_recruiter_company(org),
+                "ats": "USAJobs",
+                "skill_level": job_tier_classification(title),
+                **get_job_metadata(),
+            }
+            if salary:
+                entry["salary"] = salary
+            normalized.append(entry)
+
+        if len(items) < 500:
+            break
+        page += 1
+        time.sleep(random.uniform(0.3, 1.0))
+
+    return normalized
+
+
+def run_aggregator_source(fetcher, name):
+    """Adapter so single-shot aggregator feeds slot into the same
+    (active_companies, jobs) completion loop as the per-company ATS platforms."""
+    print("=" * 80)
+    print(f"FETCHING JOBS FROM AGGREGATOR SOURCE: {name}")
+    print("=" * 80 + "\n")
+
+    jobs = fetcher()
+    active = {}
+    for job in jobs:
+        key = job.get("company_slug") or job.get("company") or "unknown"
+        active[key] = active.get(key, 0) + 1
+
+    print(f"  {name}: {len(jobs):,} jobs from {len(active):,} companies/postings")
+    return active, jobs
+
+
 def fetch_all_jobs(companies, fetcher, platform="ATS"):
     """Fetch jobs from all companies in parallel."""
     print("=" * 80)
@@ -728,6 +1606,9 @@ def fetch_all_jobs(companies, fetcher, platform="ATS"):
         "workday": 50,
         "icims": 30,
         "paylocity": 5,
+        "workable": 20,
+        "smartrecruiters": 20,
+        "recruitee": 20,
     }
 
     max_workers = MAX_WORKERS.get(platform_lower, 30)
@@ -938,7 +1819,10 @@ def save_results(all_companies, active_companies, all_jobs):
         primary_key = f"{company}|{title}|{level}"
         fallback_key = f"{title}|{level}"
 
-        job["salary"] = salary_lookup.get(primary_key) or salary_fallback.get(
+        # A few sources (Jobicy, Himalayas, RemoteOK) report their own stated
+        # salary range at fetch time - don't clobber that with the aggregate
+        # lookup, which wouldn't match these listings' company names anyway.
+        job["salary"] = job.get("salary") or salary_lookup.get(primary_key) or salary_fallback.get(
             fallback_key
         )
 
@@ -1020,7 +1904,7 @@ def save_results(all_companies, active_companies, all_jobs):
         "total_jobs": len(all_jobs),
         "recruiter_jobs": recruiter_jobs,
         "source_type": SOURCE_TYPE,
-        "platforms": "greenhouse_api, ashby_api, bamboohr_api, lever_api, workday_api, icims_sitemap, paylocity_scrape",
+        "platforms": "greenhouse_api, ashby_api, bamboohr_api, lever_api, workday_api, icims_sitemap, paylocity_scrape, workable_api, smartrecruiters_api, recruitee_api, hackernews_whoishiring, arbeitnow_api, jobicy_api, himalayas_api, themuse_api, remoteok_api, weworkremotely_rss, usajobs_api",
     }
 
     metadata_file = os.path.join(OUTPUT_DIR, "metadata.json")
@@ -1045,6 +1929,9 @@ def main():
     workday_companies = load_companies(WORKDAY_FILE)
     icims_companies = load_companies(ICIMS_FILE)
     paylocity_companies = load_paylocity(PAYLOCITY_FILE)
+    workable_companies = load_companies(WORKABLE_FILE)
+    smartrecruiters_companies = load_companies(SMARTRECRUITERS_FILE)
+    recruitee_companies = load_companies(RECRUITEE_FILE)
 
     if (
         not greenhouse_companies
@@ -1054,6 +1941,9 @@ def main():
         and not workday_companies
         and not icims_companies
         and not paylocity_companies
+        and not workable_companies
+        and not smartrecruiters_companies
+        and not recruitee_companies
     ):
         print("Exiting - no companies loaded!")
         return
@@ -1067,17 +1957,39 @@ def main():
         (workday_companies, fetch_company_jobs_workday, "WORKDAY"),
         (icims_companies, fetch_company_jobs_icims, "iCIMS"),
         (paylocity_companies, fetch_company_jobs_paylocity, "PAYLOCITY"),
+        (workable_companies, fetch_company_jobs_workable, "WORKABLE"),
+        (smartrecruiters_companies, fetch_company_jobs_smartrecruiters, "SMARTRECRUITERS"),
+        (recruitee_companies, fetch_company_jobs_recruitee, "RECRUITEE"),
     ]
 
-    # Run all platforms concurrently
+    # Single-shot aggregator feeds - each returns jobs from many companies at
+    # once, so they don't take a company-slug list like the ATS platforms do.
+    aggregator_sources = [
+        (fetch_source_hn_who_is_hiring, "HACKERNEWS"),
+        (fetch_source_arbeitnow, "ARBEITNOW"),
+        (fetch_source_jobicy, "JOBICY"),
+        (fetch_source_himalayas, "HIMALAYAS"),
+        (fetch_source_themuse, "THEMUSE"),
+        (fetch_source_remoteok, "REMOTEOK"),
+        (fetch_source_weworkremotely, "WEWORKREMOTELY"),
+        (fetch_source_usajobs, "USAJOBS"),
+    ]
+
+    # Run all platforms + aggregator sources concurrently
     all_active_companies = {}
     all_jobs = []
 
-    with ThreadPoolExecutor(max_workers=len(platforms)) as platform_executor:
+    with ThreadPoolExecutor(max_workers=len(platforms) + len(aggregator_sources)) as platform_executor:
         futures = {
             platform_executor.submit(fetch_all_jobs, companies, fetcher, name): name
             for companies, fetcher, name in platforms
         }
+        futures.update(
+            {
+                platform_executor.submit(run_aggregator_source, fetcher, name): name
+                for fetcher, name in aggregator_sources
+            }
+        )
 
         for future in as_completed(futures):
             name = futures[future]
@@ -1097,7 +2009,13 @@ def main():
         | workday_companies
         | icims_companies
         | paylocity_companies
+        | workable_companies
+        | smartrecruiters_companies
+        | recruitee_companies
     )
+    # Aggregator sources discover their own companies dynamically (no static
+    # slug file), so fold whatever they found into the total count too.
+    all_companies |= set(all_active_companies.keys())
 
     save_results(all_companies, all_active_companies, all_jobs)
 
