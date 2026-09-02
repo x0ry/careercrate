@@ -14,23 +14,24 @@ from requests.adapters import HTTPAdapter
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(SCRIPT_DIR)
 
-# This tool only ever surfaces Nashville, TN or fully-remote jobs (see
-# is_in_scope() below), so the per-company ATS platforms scan a small,
-# individually-verified list of Nashville-connected companies instead of
-# the full ~90k-company harvested lists - scanning those exhaustively to
-# find the ~4.5% that are ever in scope was hours of wasted network time
-# per run. The full lists (greenhouse_companies.json etc.) are left on
-# disk, unused, in case broader scanning is wanted again later.
-GREENHOUSE_FILE = os.path.join(ROOT_DIR, "data", "nashville_greenhouse_companies.json")
-ASHBY_FILE = os.path.join(ROOT_DIR, "data", "nashville_ashby_companies.json")
-BAMBOOHR_FILE = os.path.join(ROOT_DIR, "data", "nashville_bamboohr_companies.json")
-WORKDAY_FILE = os.path.join(ROOT_DIR, "data", "nashville_workday_companies.json")
-LEVER_FILE = os.path.join(ROOT_DIR, "data", "nashville_lever_companies.json")
-ICIMS_FILE = os.path.join(ROOT_DIR, "data", "nashville_icims_companies.json")
-PAYLOCITY_FILE = os.path.join(ROOT_DIR, "data", "nashville_paylocity_companies.json")
-WORKABLE_FILE = os.path.join(ROOT_DIR, "data", "nashville_workable_companies.json")
-SMARTRECRUITERS_FILE = os.path.join(ROOT_DIR, "data", "nashville_smartrecruiters_companies.json")
-RECRUITEE_FILE = os.path.join(ROOT_DIR, "data", "nashville_recruitee_companies.json")
+# Reverted: a hand-curated "famous Nashville employers" list looked like a
+# smart speed optimization, but it silently discarded the long tail of
+# small/random companies where AI-titled and Nashville-relevant postings
+# actually turn up (per real sampling, matches are ~4.5% of jobs spread
+# thin across ~90k companies, not concentrated in big regional names like
+# HCA or Vanderbilt). Scanning the full harvested lists is what actually
+# finds real results - is_in_scope() below still keeps the final dataset
+# lean, it just no longer throws away companies before ever checking them.
+GREENHOUSE_FILE = os.path.join(ROOT_DIR, "data", "greenhouse_companies.json")
+ASHBY_FILE = os.path.join(ROOT_DIR, "data", "ashby_companies.json")
+BAMBOOHR_FILE = os.path.join(ROOT_DIR, "data", "bamboohr_companies.json")
+WORKDAY_FILE = os.path.join(ROOT_DIR, "data", "workday_companies.json")
+LEVER_FILE = os.path.join(ROOT_DIR, "data", "lever_companies.json")
+ICIMS_FILE = os.path.join(ROOT_DIR, "data", "icims_companies.json")
+PAYLOCITY_FILE = os.path.join(ROOT_DIR, "data", "paylocity_companies_clean.json")
+WORKABLE_FILE = os.path.join(ROOT_DIR, "data", "workable_companies.json")
+SMARTRECRUITERS_FILE = os.path.join(ROOT_DIR, "data", "smartrecruiters_companies.json")
+RECRUITEE_FILE = os.path.join(ROOT_DIR, "data", "recruitee_companies.json")
 
 LOCATIONS_FILE = os.path.join(ROOT_DIR, "data", "locations.json")
 

@@ -76,11 +76,12 @@ data/metadata.json
 !data/locations.json
 !data/salary/salary_lookup.json
 !data/salary/shards/salary_*.json
+!data/workable_companies.json
+!data/smartrecruiters_companies.json
+!data/recruitee_companies.json
 
-# Curated Nashville-connected company lists (see scripts/scraper.py) - these
-# are what main() actually scans now, so unlike the full harvested lists
-# above they MUST be tracked or a fresh checkout (e.g. GitHub Actions) loads
-# them as empty and silently skips every per-company ATS platform.
+# The Nashville-curated lists from a since-reverted approach - not deleted
+# in case they're useful again, but nothing in scraper.py references them.
 !data/nashville_*.json
 
 # Keep trend history tracked on main (append-only, valuable, deltas cheaply)
