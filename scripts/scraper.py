@@ -1653,6 +1653,62 @@ def fetch_all_jobs(companies, fetcher, platform="ATS"):
 # ============================================================
 # Helper Functions
 # ============================================================
+# ============================================================
+# TARGET SCOPE - Nashville, TN and fully-remote only
+# ============================================================
+# A 25,000-job sample of a full unfiltered scrape showed only ~4.4% were
+# remote or Nashville-adjacent - the other ~95.6% would be fetched,
+# enriched, deduped, chunked, and shipped to the frontend only to never be
+# shown to anyone, since that's the only thing this tool is for. Filtering
+# here means every downstream step (merge, chunk, IndexedDB cache, initial
+# page load) only ever handles jobs that could actually be relevant.
+
+
+def _location_matches_nashville(location):
+    if not location:
+        return False
+    location = location.lower()
+    if "nashville" in location:
+        return True
+    # Same per-word Levenshtein fallback as the frontend's location filter
+    # (js/filters.js fuzzyMatch) and scripts/export_jobs_md.py, so a job that
+    # would show up under the site's own Nashville filter never gets
+    # discarded here first.
+    words = [w for w in re.split(r"\W+", location) if w]
+    for word in words:
+        max_len = max(len(word), len("nashville"))
+        if max_len == 0:
+            continue
+        distance = levenshtein("nashville", word)
+        if 1 - distance / max_len >= 0.75:
+            return True
+    return False
+
+
+def levenshtein(a, b):
+    dp = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
+    for i in range(len(a) + 1):
+        dp[i][0] = i
+    for j in range(len(b) + 1):
+        dp[0][j] = j
+    for i in range(1, len(a) + 1):
+        for j in range(1, len(b) + 1):
+            if a[i - 1] == b[j - 1]:
+                dp[i][j] = dp[i - 1][j - 1]
+            else:
+                dp[i][j] = 1 + min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1])
+    return dp[len(a)][len(b)]
+
+
+def is_in_scope(job):
+    """This tool only serves Nashville, TN and fully-remote jobs. Everything
+    else is discarded here rather than kept and filtered away at display
+    time."""
+    if job.get("remote") is True:
+        return True
+    return _location_matches_nashville(job.get("location"))
+
+
 def is_recruiter_company(slug):
     slug = slug.lower()
 
@@ -1999,6 +2055,20 @@ def main():
             print(
                 f"\n  >>> {name} COMPLETE: {len(active):,} active, {len(jobs):,} jobs <<<\n"
             )
+
+    # Keep only jobs in scope for this tool (Nashville, TN or fully remote) -
+    # see is_in_scope() for why this happens here rather than not at all.
+    before_filter = len(all_jobs)
+    all_jobs = [job for job in all_jobs if is_in_scope(job)]
+    pct = f"{len(all_jobs) / before_filter:.1%}" if before_filter else "n/a"
+    print(f"\nScope filter: kept {len(all_jobs):,} of {before_filter:,} jobs ({pct}) - Nashville or remote only\n")
+
+    # Recompute active companies from the filtered set - a company with zero
+    # in-scope jobs left isn't "active" for this tool's purposes anymore.
+    all_active_companies = {}
+    for job in all_jobs:
+        key = job.get("company_slug") or job.get("company") or "unknown"
+        all_active_companies[key] = all_active_companies.get(key, 0) + 1
 
     # Combine all company sets for total count
     all_companies = (
