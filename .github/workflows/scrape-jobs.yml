@@ -3,6 +3,9 @@ on:
   schedule:
     - cron: "33 7 * * *" # 3:33am EST
   workflow_dispatch: # Manual trigger button
+permissions:
+  contents: write # release creation + trend-history push to main
+  issues: write # anomaly-detection issue creation
 jobs:
   scrape:
     runs-on: ubuntu-latest
