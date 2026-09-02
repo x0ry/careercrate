@@ -57,15 +57,10 @@ scripts/tests/test_bamboohr.py
 scripts/tests/test_enrich.py
 scripts/tests/test_scraper.py
 
-# ============================================================
-# Generated data - served from the data-live branch, NOT tracked on main.
-# This is the heavy daily-regenerated data that caused repo bloat.
-# ============================================================
-data/chunks/
-data/metadata.json
-
 # Ignore JSON files globally, except specific tracked ones below
 *.json
+!data/chunks/jobs_manifest.json
+!data/chunks/jobs_chunk_*.json.gz
 !data/greenhouse_companies.json
 !data/ashby_companies.json
 !data/bamboohr_companies.json
