@@ -2,7 +2,6 @@
 // JOBS LOADER
 // ============================================================
 
-import { enableMap } from "./map_view.js";
 import { showToast } from "./ui_utils.js";
 import {
     getCacheMeta,
@@ -65,7 +64,6 @@ export async function loadJobsProgressive(app, basePath = 'data/chunks') {
             updateStats(app.allJobs, manifest.last_updated);
             app.render();
             thead?.classList.remove('sorting-locked');
-            enableMap();
             attachSortHandler(app, worker);
             console.log(`Loaded ${cachedJobs.length.toLocaleString()} jobs instantly from cache (version ${version}).`);
             return;
@@ -91,7 +89,6 @@ export async function loadJobsProgressive(app, basePath = 'data/chunks') {
             updateStats(app.allJobs, fallbackVersion);
             app.render();
             thead?.classList.remove('sorting-locked');
-            enableMap();
             attachSortHandler(app, worker);
             showToast('Could not reach the latest job data - showing your last cached results instead.', 'warning');
             return;
@@ -132,7 +129,6 @@ function fetchAllChunksFromNetwork(app, worker, manifest, basePath, version, pre
 
         app.isFullyLoaded = true;
         thead?.classList.remove('sorting-locked');
-        enableMap();
 
         if (succeeded === chunkCount) {
             setCacheMeta({ version, totalJobs: manifest.totalJobs, chunkCount, complete: true });

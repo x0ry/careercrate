@@ -10,7 +10,6 @@ import { render } from './renderer.js';
 import { updateURL, loadFromURL } from './url_state.js';
 import { setupEventListeners } from './events.js';
 import { sortJobs } from './sort_logic.js';
-import { toggleView, updateHeatmapIfVisible } from './map_view.js';
 
 // Applied on first load only, when the URL carries no filters of its own
 // (e.g. a shared/bookmarked link). "Nashville" (not "Nashville, Tennessee")
@@ -46,7 +45,6 @@ class JobBoardApp {
         await this.loadJobs();
         setupEventListeners(this);
         this.loadFromURL();
-        this.setupViewToggle();  // ← add this
         this.render();
     }
 
@@ -89,7 +87,6 @@ class JobBoardApp {
         this.currentPage = 1;
         this.sortedJobs = null;
         updateURL(this.filterState, this.currentPage, this.sortState);
-        updateHeatmapIfVisible();
 
         // Only re-sort if a sort is active AND it's a sortable column
         const sortableKeys = ['company', 'salary', 'posted'];
@@ -111,7 +108,6 @@ class JobBoardApp {
         this.currentPage = 1;
         this.sortedJobs = null;
         updateURL(this.filterState, this.currentPage, this.sortState);
-        updateHeatmapIfVisible();
 
         const sortableKeys = ['company', 'salary', 'posted'];
         if (this.sortState.key && sortableKeys.includes(this.sortState.key)) {
@@ -124,7 +120,6 @@ class JobBoardApp {
     refilter() {
         const { filteredJobs } = filterJobs(this.allJobs);
         this.filteredJobs = filteredJobs;
-        updateHeatmapIfVisible();
         this.render();   // always render so the page count reflects newly loaded jobs
     }
 
@@ -220,21 +215,6 @@ class JobBoardApp {
             document.getElementById('filter-location').value = DEFAULT_FILTERS.location;
             this.applyFilters();
         }
-    }
-
-    // ── View Toggle ──────────────────────────────────────────
-    setupViewToggle() {
-        document.querySelectorAll('.view-toggle').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.view-toggle').forEach(b => {
-                    b.classList.remove('active', 'btn-primary');
-                    b.classList.add('btn-outline-primary');
-                });
-                btn.classList.add('active', 'btn-primary');
-                btn.classList.remove('btn-outline-primary');
-                toggleView(btn.dataset.view, this);
-            });
-        });
     }
 }
 
