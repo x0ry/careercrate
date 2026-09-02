@@ -13,16 +13,24 @@ from requests.adapters import HTTPAdapter
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(SCRIPT_DIR)
-GREENHOUSE_FILE = os.path.join(ROOT_DIR, "data", "greenhouse_companies.json")
-ASHBY_FILE = os.path.join(ROOT_DIR, "data", "ashby_companies.json")
-BAMBOOHR_FILE = os.path.join(ROOT_DIR, "data", "bamboohr_companies.json")
-WORKDAY_FILE = os.path.join(ROOT_DIR, "data", "workday_companies.json")
-LEVER_FILE = os.path.join(ROOT_DIR, "data", "lever_companies.json")
-ICIMS_FILE = os.path.join(ROOT_DIR, "data", "icims_companies.json")
-PAYLOCITY_FILE = os.path.join(ROOT_DIR, "data", "paylocity_companies_clean.json")
-WORKABLE_FILE = os.path.join(ROOT_DIR, "data", "workable_companies.json")
-SMARTRECRUITERS_FILE = os.path.join(ROOT_DIR, "data", "smartrecruiters_companies.json")
-RECRUITEE_FILE = os.path.join(ROOT_DIR, "data", "recruitee_companies.json")
+
+# This tool only ever surfaces Nashville, TN or fully-remote jobs (see
+# is_in_scope() below), so the per-company ATS platforms scan a small,
+# individually-verified list of Nashville-connected companies instead of
+# the full ~90k-company harvested lists - scanning those exhaustively to
+# find the ~4.5% that are ever in scope was hours of wasted network time
+# per run. The full lists (greenhouse_companies.json etc.) are left on
+# disk, unused, in case broader scanning is wanted again later.
+GREENHOUSE_FILE = os.path.join(ROOT_DIR, "data", "nashville_greenhouse_companies.json")
+ASHBY_FILE = os.path.join(ROOT_DIR, "data", "nashville_ashby_companies.json")
+BAMBOOHR_FILE = os.path.join(ROOT_DIR, "data", "nashville_bamboohr_companies.json")
+WORKDAY_FILE = os.path.join(ROOT_DIR, "data", "nashville_workday_companies.json")
+LEVER_FILE = os.path.join(ROOT_DIR, "data", "nashville_lever_companies.json")
+ICIMS_FILE = os.path.join(ROOT_DIR, "data", "nashville_icims_companies.json")
+PAYLOCITY_FILE = os.path.join(ROOT_DIR, "data", "nashville_paylocity_companies.json")
+WORKABLE_FILE = os.path.join(ROOT_DIR, "data", "nashville_workable_companies.json")
+SMARTRECRUITERS_FILE = os.path.join(ROOT_DIR, "data", "nashville_smartrecruiters_companies.json")
+RECRUITEE_FILE = os.path.join(ROOT_DIR, "data", "nashville_recruitee_companies.json")
 
 LOCATIONS_FILE = os.path.join(ROOT_DIR, "data", "locations.json")
 
@@ -1205,6 +1213,16 @@ def fetch_source_himalayas(max_pages=100):
             break
 
         for job in jobs:
+            company_slug = job.get("companySlug")
+            # A handful of listings omit companyName but still carry a slug -
+            # fall back to a title-cased version of that rather than emitting
+            # a None company (crashes the frontend sort further downstream).
+            company = job.get("companyName") or (
+                company_slug.replace("-", " ").title() if company_slug else None
+            )
+            if not company:
+                continue
+
             locations = job.get("locationRestrictions") or []
             location = (", ".join(locations) or "Remote")[:50]
             _, coords = enrich_location(location)
@@ -1215,8 +1233,8 @@ def fetch_source_himalayas(max_pages=100):
             )
             job_url = job.get("applicationLink") or job.get("guid")
             entry = {
-                "company": job.get("companyName"),
-                "company_slug": job.get("companySlug"),
+                "company": company,
+                "company_slug": company_slug,
                 "title": title,
                 "location": location,
                 "remote": True,
@@ -1278,11 +1296,14 @@ def fetch_source_themuse(max_pages=150):
             break
 
         for job in results:
+            company = (job.get("company") or {}).get("name")
+            if not company:
+                continue  # a handful of listings omit the company name entirely
+
             locations = [loc.get("name") for loc in (job.get("locations") or []) if loc.get("name")]
             location = (", ".join(locations) or "Not specified")[:50]
             inferred_remote, coords = enrich_location(location)
             title = job.get("name", "")
-            company = (job.get("company") or {}).get("name")
             job_url = (job.get("refs") or {}).get("landing_page")
             categories = [c.get("name") for c in (job.get("categories") or []) if c.get("name")]
 
@@ -1910,9 +1931,12 @@ def save_results(all_companies, active_companies, all_jobs):
         {k: job.get(k) for k in FRONTEND_FIELDS if k in job} for job in all_jobs
     ]
 
-    # Pre-sort by company name for better frontend caching
+    # Pre-sort by company name for better frontend caching. `.get(k, "")`
+    # only covers a missing key - a job whose company/title key is present
+    # but explicitly None (has happened with The Muse's company.name) still
+    # needs the `or ""` to avoid crashing .lower().
     slim_jobs.sort(
-        key=lambda x: (x.get("company", "").lower(), x.get("title", "").lower())
+        key=lambda x: ((x.get("company") or "").lower(), (x.get("title") or "").lower())
     )
 
     # Chunks go in a subdirectory to keep the output folder organized

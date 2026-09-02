@@ -53,7 +53,7 @@ def save_chunks(jobs, directory, timestamp):
             os.remove(chunks_dir / f)
 
     # Sort consistently
-    jobs.sort(key=lambda x: (x.get('company', '').lower(), x.get('title', '').lower()))
+    jobs.sort(key=lambda x: ((x.get('company') or '').lower(), (x.get('title') or '').lower()))
     chunks = [jobs[i:i + CHUNK_SIZE] for i in range(0, len(jobs), CHUNK_SIZE)]
 
     chunk_filenames = []

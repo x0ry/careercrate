@@ -34,6 +34,13 @@ export async function loadJobsProgressive(app, basePath = 'data/chunks') {
     const thead = document.querySelector('.job-table thead');
     thead?.classList.add('sorting-locked');
 
+    // Resolve to an absolute URL up front - a relative basePath resolves
+    // fine on the main thread (against the page's own URL), but the chunk
+    // worker fetches chunk URLs from inside js/chunk_worker.js, where a
+    // relative path would resolve against the worker's own script location
+    // instead and 404.
+    basePath = new URL(basePath, document.baseURI).href;
+
     const manifest = await fetch(`${basePath}/jobs_manifest.json?t=${Date.now()}`).then(res => {
         if (!res.ok) throw new Error('Failed to load jobs manifest');
         return res.json();
